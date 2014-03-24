@@ -109,6 +109,16 @@ precision mediump float;
 uniform float time;
 uniform float steer;
 
+bool in_car(float s, float v, float x, float y) {
+    float oy = y * 4.0;
+    float ox = (x - 0.10) / 0.775;
+    return (v * s) > 0.0 && ox > 0.0 && ox < 1.0 && oy > 0.0 && oy < 1.0 && ((ox > 0.125 && ox < 0.875) || oy > 0.75 || oy < 0.25);
+}
+
+vec4 roadway(float y) {
+    return mix(vec4(vec3(0.5 - y / 2.0), 1.0), vec4(0., 0., 0., 1.0), y);
+}
+
 void main() {
     vec2 uv = vec2(gl_FragCoord.x / 640.0, gl_FragCoord.y / 480.0);
     vec4 color;
@@ -120,10 +130,12 @@ void main() {
     float x = abs(v);
   
     if (uv.y > h) {
+       // sky
        float s = (uv.y - 0.5) * 2.0;
        color = vec4(s, s, uv.y, 1.0);
 
     } else if (x < 0.05) {
+       // center line
        float frag = 0.5 - y / 2.0;
        if (y > 0.0) {
            float hy = 1.0 / (y * y);
@@ -132,44 +144,49 @@ void main() {
        color = vec4(vec3(frag), 1.0);
 
     } else if (x < 0.95) {
-       color = mix(vec4(vec3(0.5 - y / 2.0), 1.0), vec4(0., 0., 0., 1.0), y);
+       // roadway
+       color = roadway(y);
 
     } else if (x < 1.0) {
+       // side lines
        color = vec4(vec3(0.75), 1.0);
 
     } else if (x < 1.1) {
-       color = mix(vec4(vec3(0.5 - y / 2.0), 1.0), vec4(0., 0., 0., 1.0), y);
+       // roadway
+       color = roadway(y);
 
     } else {
-        float frag = 1.0 - y;
-        if (y > 0.0) {
-            float hy = 1.0 / (y * y);
-            frag = mix(frag, floor(mod(sin(hy + time * 20.0), 2.0)), y);
-        }
-        color = vec4(vec3(frag), 1.0);
+       // landscape
+       float frag = 1.0 - y;
+       if (y > 0.0) {
+           float hy = 1.0 / (y * y);
+           frag = mix(frag, floor(mod(sin(hy + time * 20.0), 2.0)), y);
+       }
+       color = vec4(vec3(frag), 1.0);
 
     }
 
-    float cy = (1.0 - y - 0.125) * 4.0;
-    float cx = (x - 0.10) / 0.775;
-    if (v * steer > 0.0 && cx > 0.0 && cx < 1.0 && cy > 0.0 && cy < 1.0 && ((cx > 0.125 && cx < 0.875) || cy > 0.75 || cy < 0.25)) {
+    // car
+    if (in_car(steer, v, x, 1.0 - y - 0.125)) {
         color = vec4(vec3(1.0), 1.0);
     }
     
+    // obstacle
     float osteer = sin(time / 2.0);
-    float oy = mod(1.0 - y + time / 2.0, 1.0) * 4.0;
-    float ox = (x - 0.10) / 0.775;
-    if (uv.y < h && (v * osteer) > 0.0 && ox > 0.0 && ox < 1.0 && oy > 0.0 && oy < 1.0 && ((ox > 0.125 && ox < 0.875) || oy > 0.75 || oy < 0.25)) {
+    if (uv.y < h && in_car(osteer, v, x, mod(1.0 - y + time / 2.0, 1.0))) {
         color = vec4(vec3(1.0, 0.5, 0.5), 1.0);
     }
     
+    // collision
     if (osteer * steer > 0.0) {
        float coy = mod(0.375 + time / 2.0, 1.0) * 4.0;
        if (coy < 1.0) {
            color = vec4(abs(vec3(1.0) - color.xyz), 1.0);
        }
     }
+
     gl_FragColor = color;
+
   }
 
 // ]]></script>
